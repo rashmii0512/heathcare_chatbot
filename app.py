@@ -82,7 +82,7 @@ def powerset(seq):
             yield item
 
 
-# Sort list based on length
+# Sort list based on length using bubble sort
 def sort(a):
     for i in range(len(a)):
         for j in range(i + 1, len(a)):
@@ -112,7 +112,7 @@ def DoesExist(txt):
     return False
 
 
-# Jaccard similarity 2docs
+# Jaccard similarity between 2docs
 def jaccard_set(str1, str2):
     list1 = str1.split(' ')
     list2 = str2.split(' ')
@@ -122,6 +122,8 @@ def jaccard_set(str1, str2):
 
 
 # apply vanilla jaccard to symp with all corpus
+# check if given symptom is present, if it is directly returns
+# if it isnt , finds all the possible diseases - whoseever symptoms are similar
 def syntactic_similarity(symp_t, corpus):
     most_sim = []
     poss_sym = []
@@ -175,9 +177,11 @@ def semanticD(doc1, doc2):
     score = 0
     for tock1 in doc1_p:
         for tock2 in doc2_p:
+            # Word Sense Disambiguation 
             syn1 = WSD(tock1, doc1)
             syn2 = WSD(tock2, doc2)
             if syn1 is not None and syn2 is not None:
+                #Wu-Palmer similarity 
                 x = syn1.wup_similarity(syn2)
                 # x=syn1.path_similarity((syn2))
                 if x is not None and x > 0.25:
@@ -200,8 +204,11 @@ def semantic_similarity(symp_t, corpus):
 # given a symp suggest possible synonyms
 def suggest_syn(sym):
     symp = []
+    # gives synonyms with & whether they are noun verb etc
     synonyms = wordnet.synsets(sym)
+    # words or names representing the concept within the synonyms
     lemmas = [word.lemma_names() for word in synonyms]
+    # converting to set to remove duplicates
     lemmas = list(set(itertools.chain(*lemmas)))
     for e in lemmas:
         res, sym1 = semantic_similarity(e, all_symp_pr)
@@ -295,6 +302,7 @@ getDescription()
 
 
 # calcul patient condition
+# It returns 1 if the condition is severe, suggesting consultation with a doctor, and 0 otherwise.
 def calc_condition(exp, days):
     sum = 0
     for item in exp:
@@ -309,6 +317,7 @@ def calc_condition(exp, days):
 
 
 # print possible symptoms
+#It returns 1 if the condition is severe, suggesting consultation with a doctor, and 0 otherwise.
 def related_sym(psym1):
     s = "could you be more specific, <br>"
     i = len(s)
@@ -342,12 +351,15 @@ def get_bot_response():
                 session["name"] = name
                 session["age"] = age
                 session["gender"] = gender
+    # Starting the conversation by asking for the user's name
     if s.upper() == "OK":
         return "What is your name ?"
+    # ask for their age
     if 'name' not in session and 'step' not in session:
         session['name'] = s
         session['step'] = "age"
         return "How old are you? "
+    # ask for gender
     if session["step"] == "age":
         session["age"] = int(s)
         session["step"] = "gender"
@@ -367,8 +379,8 @@ def get_bot_response():
         sym1 = preprocess(sym1)
         sim1, psym1 = syntactic_similarity(sym1, all_symp_pr)
         temp = [sym1, sim1, psym1]
-        session['FSY'] = temp  # info du 1er symptome
-        session['step'] = "SS"  # second symptomee
+        session['FSY'] = temp  # information about the first symptom
+        session['step'] = "SS"  # second symptom
         if sim1 == 1:
             session['step'] = "RS1"  # related_sym1
             s = related_sym(psym1)
@@ -407,16 +419,19 @@ def get_bot_response():
         session['SSY'] = temp
         session['step'] = "semantic"
     if session['step'] == "semantic":
-        temp = session["FSY"]  # recuperer info du premier
+        temp = session["FSY"]  # retrieving information about the first symptom
         sym1 = temp[0]
         sim1 = temp[1]
-        temp = session["SSY"]  # recuperer info du 2 eme symptome
+        temp = session["SSY"]  # retrieving information about the second symptom
         sym2 = temp[0]
         sim2 = temp[1]
         if sim1 == 0 or sim2 == 0:
             session['step'] = "BFsim1=0"
         else:
             session['step'] = 'PD'  # to possible_diseases
+
+
+     # Handling case where semantic similarity for the first symptom is 0
     if session['step'] == "BFsim1=0":
         if sim1 == 0 and len(sym1) != 0:
             sim1, psym1 = semantic_similarity(sym1, all_symp_pr)
@@ -454,6 +469,8 @@ def get_bot_response():
         if "suggested" in session:
             del session["suggested"]
         session['step'] = "BFsim2=0"
+
+     # Handling case where semantic similarity for both symptoms is 0
     if session['step'] == "BFsim2=0":
         temp = session["SSY"]  # recuperer info du 2 eme symptome
         sym2 = temp[0]
@@ -495,6 +512,9 @@ def get_bot_response():
         if "suggested_2" in session:
             del session["suggested_2"]
         session['step'] = "TEST"  # test if semantic and syntaxic and suggestion not found
+
+     #giveing resutlt and
+     # Handling the case where neither semantic nor syntactic similarities are found
     if session['step'] == "TEST":
         temp = session["FSY"]
         sim1 = temp[1]
@@ -504,6 +524,7 @@ def get_bot_response():
         psym2 = temp[2]
         if sim1 == 0 and sim2 == 0:
             # GO TO THE END
+            print("no result")
             result = None
             session['step'] = "END"
         else:
@@ -539,6 +560,8 @@ def get_bot_response():
         dis = diseases[0]
         session["dis"] = dis
         session['step'] = "for_dis"
+
+    # Handling the case where there are more diseases to consider
     if session['step'] == "DIS":
         if "symv" in session:
             if len(s) > 0 and len(session["symv"]) > 0:
@@ -576,6 +599,7 @@ def get_bot_response():
             #            del diseases[0]
             session["diseases"] = PD
             session['step'] = "for_dis"
+    # Handling the case where there are more diseases to consider
     if session['step'] == "for_dis":
         diseases = session["diseases"]
         if len(diseases) <= 0:
@@ -586,6 +610,8 @@ def get_bot_response():
             session["symv"] = symVONdisease(df_tr, session["dis"])
             return get_bot_response()  # turn around sympt of dis
         # predict possible diseases
+
+    #  Predicting possible diseases
     if session['step'] == "PREDICT":
         result = knn_clf.predict(OHV(session["all"], all_symp_col))
         session['step'] = "END"
@@ -607,13 +633,16 @@ def get_bot_response():
         y = {"Name": session["name"], "Age": session["age"], "Gender": session["gender"], "Disease": session["disease"],
              "Sympts": session["all"]}
         write_json(y)
-        session['step'] = "Severity"
+        # session['step'] = "Severity"
+        session['step'] = "FINAL"
         if session["disease"] in description_list.keys():
             return description_list[session["disease"]] + " \n <br>  How many days have you had symptoms?"
         else:
             if " " in session["disease"]:
                 session["disease"] = session["disease"].replace(" ", "_")
             return "please visit <a href='" + "https://en.wikipedia.org/wiki/" + session["disease"] + "'>  here  </a>"
+    
+    # Assessing the severity of the condition
     if session['step'] == "Severity":
         session['step'] = 'FINAL'
         if calc_condition(session["all"], int(s)) == 1:
@@ -626,6 +655,7 @@ def get_bot_response():
                 i += 1
             msg += ' Tap q to end'
             return msg
+    
     if session['step'] == "FINAL":
         session['step'] = "BYE"
         return "Your diagnosis was perfectly completed. Do you need another medical consultation (yes or no)? "
@@ -641,7 +671,7 @@ def get_bot_response():
             session['step'] = "FS"
             return "HELLO again Mr/Ms " + session["name"] + " Please tell me your main symptom. "
         else:
-            return "THANKS Mr/Ms " + name + " for using me for more information please contact <b> +21266666666</b>"
+            return "THANKS Mr/Ms " + name + " for using me"
 
 
 if __name__ == "__main__":
